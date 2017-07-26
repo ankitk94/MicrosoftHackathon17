@@ -1,43 +1,17 @@
 ﻿<!DOCTYPE html>
 <html>
+
 <head>
     <title>Speech Sample</title>
     <meta charset="utf-8" />
 </head>
+
 <body style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px;">
     <table width="100%">
         <tr>
             <td></td>
             <td>
-                <h1 style="font-weight:500;">Speech Recognition</h1>
-                <h2 style="font-weight:500;">Microsoft Cognitive Services</h2>
-            </td>
-        </tr>
-        <tr>
-            <td align="right"><a href="https://www.microsoft.com/cognitive-services/en-us/sign-up" target="_blank">Subscription</a>:</td>
-            <td><input id="key" type="text" size="40" value="b25c9c5d48994c88a344bb45eaff8f47"></td>
-        </tr>
-        <tr>
-            <td align="right">Laguage:</td>
-            <td align="left">
-                <select id="languageOptions">
-                    <option value="zh-CN">Chinese - CN</option>
-                    <option value="en-GB">English - GB</option>
-                    <option value="en-US" selected="selected">English - US</option>
-                    <option value="fr-FR">French - FR</option>
-                    <option value="de-DE">German - DE</option>
-                    <option value="it-IT">Italian - IT</option>
-                    <option value="es-ES">Spanish - ES</option>
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td align="right">Format:</td>
-            <td align="left">
-                <select id="formatOptions">
-                    <option value="Simple" selected="selected">Simple Result</option>
-                    <option value="Detailed">Detailed Result</option>
-                </select>
+                <h1 style="font-weight:500;">Scrum master</h1>
             </td>
         </tr>
         <tr>
@@ -49,28 +23,13 @@
         </tr>
         <tr>
             <td></td>
-            <td>Current hypothesis: <span id="hypothesisDiv"></span></td>
-        </tr>
-        <tr>
-            <td></td>
-            <td>
-                <textarea id="phraseDiv" style="width:500px;height:200px"></textarea>
-            </td>
-        </tr>
-        <tr>
-            <td></td>
             <td>Status: <span id="statusDiv"></span></td>
         </tr>
     </table>
 
     <!-- The SDK has a dependency on requirejs (http://requirejs.org/). -->
-    <script src="//cdnjs.cloudflare.com/ajax/libs/require.js/2.3.3/require.min.js"></script>
-    <script>
-        // Special handling to let the sample work when loaded directly from file system.
-        if (window.location.protocol == "file:") {
-            document.write('\<script src="http://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.3/require.min.js">\<\/script>');
-        }
-    </script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.3/require.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 
     <!-- SDK REFERENCE -->
     <script src="../../distrib\speech.browser.sdk-min.js"></script>
@@ -79,11 +38,11 @@
     <script>
         // On doument load resolve the SDK dependecy
         function Initialize(onComplete) {
-            require(["Speech.Browser.Sdk"], function(SDK) {
+            require(["Speech.Browser.Sdk"], function (SDK) {
                 onComplete(SDK);
             });
         }
-        
+
         // Setup the recongizer
         function RecognizerSetup(SDK, recognitionMode, language, format, subscriptionKey) {
             var recognizerConfig = new SDK.RecognizerConfig(
@@ -109,47 +68,47 @@
                  if (event instanceof SDK.RecognitionTriggeredEvent)
                 */
                 switch (event.Name) {
-                    case "RecognitionTriggeredEvent" :
+                    case "RecognitionTriggeredEvent":
                         UpdateStatus("Initializing");
                         break;
-                    case "ListeningStartedEvent" :
+                    case "ListeningStartedEvent":
                         UpdateStatus("Listening");
                         break;
-                    case "RecognitionStartedEvent" :
+                    case "RecognitionStartedEvent":
                         UpdateStatus("Listening_Recognizing");
                         break;
-                    case "SpeechStartDetectedEvent" :
+                    case "SpeechStartDetectedEvent":
                         UpdateStatus("Listening_DetectedSpeech_Recognizing");
                         console.log(JSON.stringify(event.Result)); // check console for other information in result
                         break;
-                    case "SpeechHypothesisEvent" :
+                    case "SpeechHypothesisEvent":
                         UpdateRecognizedHypothesis(event.Result.Text);
                         console.log(JSON.stringify(event.Result)); // check console for other information in result
                         break;
-                    case "SpeechEndDetectedEvent" :
+                    case "SpeechEndDetectedEvent":
                         OnSpeechEndDetected();
                         UpdateStatus("Processing_Adding_Final_Touches");
                         console.log(JSON.stringify(event.Result)); // check console for other information in result
                         break;
-                    case "SpeechSimplePhraseEvent" :
+                    case "SpeechSimplePhraseEvent":
                         UpdateRecognizedPhrase(JSON.stringify(event.Result, null, 3));
                         break;
-                    case "SpeechDetailedPhraseEvent" :
+                    case "SpeechDetailedPhraseEvent":
                         UpdateRecognizedPhrase(JSON.stringify(event.Result, null, 3));
                         break;
-                    case "RecognitionEndedEvent" :
+                    case "RecognitionEndedEvent":
                         OnComplete();
                         UpdateStatus("Idle");
                         console.log(JSON.stringify(event)); // Debug information
                         break;
                 }
             })
-            .On(() => {
-                // The request succeeded. Nothing to do here.
-            },
-            (error) => {
-                console.error(error);
-            });
+                .On(() => {
+                    // The request succeeded. Nothing to do here.
+                },
+                (error) => {
+                    console.error(error);
+                });
         }
 
         // Stop the Recognition.
@@ -161,7 +120,7 @@
 
     <!-- Browser Hooks -->
     <script>
-        var startBtn, stopBtn, hypothesisDiv, phraseDiv, statusDiv, key, languageOptions, formatOptions;
+        var startBtn, stopBtn;
         var SDK;
         var recognizer;
         var previousSubscriptionKey;
@@ -170,29 +129,14 @@
             createBtn = document.getElementById("createBtn");
             startBtn = document.getElementById("startBtn");
             stopBtn = document.getElementById("stopBtn");
-            phraseDiv = document.getElementById("phraseDiv");
-            hypothesisDiv = document.getElementById("hypothesisDiv");
             statusDiv = document.getElementById("statusDiv");
-            key = document.getElementById("key");
-            languageOptions = document.getElementById("languageOptions");
-            formatOptions = document.getElementById("formatOptions");
-
-            languageOptions.addEventListener("change", function () {
-                Setup();
-            });
-            
-            formatOptions.addEventListener("change", function () {
-                Setup();
-            });
 
             startBtn.addEventListener("click", function () {
-                if (!recognizer || previousSubscriptionKey != key.value) {
-                    previousSubscriptionKey = key.value;
+                if (!recognizer) {
+                    previousSubscriptionKey = "b25c9c5d48994c88a344bb45eaff8f47";
                     Setup();
                 }
 
-                hypothesisDiv.innerHTML = "";
-                phraseDiv.innerHTML = "";
                 RecognizerStart(SDK, recognizer);
                 startBtn.disabled = true;
                 stopBtn.disabled = false;
@@ -211,7 +155,8 @@
         });
 
         function Setup() {
-            recognizer = RecognizerSetup(SDK, SDK.RecognitionMode.Interactive, languageOptions.value, SDK.SpeechResultFormat[formatOptions.value], key.value);
+            recognizer = RecognizerSetup(SDK, SDK.RecognitionMode.Dictation,
+                "en-IN", SDK.SpeechResultFormat["Detailed"], "b25c9c5d48994c88a344bb45eaff8f47");
         }
 
         function UpdateStatus(status) {
@@ -219,7 +164,6 @@
         }
 
         function UpdateRecognizedHypothesis(text) {
-            hypothesisDiv.innerHTML = text;
         }
 
         function OnSpeechEndDetected() {
@@ -227,7 +171,124 @@
         }
 
         function UpdateRecognizedPhrase(json) {
-             phraseDiv.innerHTML = json;
+            //console.log(json);
+
+            // Code for detailed view for speech to text starts
+
+            // Detect recognition status
+            var text = JSON.parse(json);
+            var bestIntentId, bestIntentState, bestIntent;
+            var bestConfidence = 0.0;
+            var asyncAjax = [];
+            //console.log(json);
+            // Only case use this
+
+            if(text.RecognitionStatus == "Success") {
+
+            var recognisedData = text.NBest;
+
+            //console.log("total: " + recognisedData.length);
+
+            recognisedData.forEach(function (speechEstimate, index) {
+                console.log(speechEstimate);
+                if(speechEstimate && speechEstimate.Confidence > 0.65) {
+            var def = $.Deferred();
+            asyncAjax.push(def);
+            text = speechEstimate.ITN;
+            //console.log(text);
+
+
+            // Code for detailed view for speech to text ends
+
+
+
+
+
+
+
+                var url = "https://southeastasia.api.cognitive.microsoft.com" +
+                    "/luis/v2.0/apps/338a50e6-a759-4418-a8b3-9f09ec0b540b" +
+                    "?subscription-key=73ed210703444c72a812f052b06da41d&verbose=true" +
+                    "&timezoneOffset=0&spellCheck=true&q=" +
+                    encodeURI(text);
+
+                var ajax1 = $.ajax({
+                    url: url,
+                    dataType: 'json',
+                    error: function(a, b) {
+                        console.log("error" + index);
+                        asyncAjax[index].resolve({});
+                    },
+                    success: function(results) {
+                        console.log("success" + index);
+                        if (results) {
+                        // console.log(text);
+                        // console.log(results);
+                        (results.intents).forEach(function (intent) {
+                            // console.log(intent);
+                            if (intent.intent == "Update" && intent.score > 0.8) {
+                                // console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                                // console.log(results);
+                                var id, state;
+                                (results.entities).forEach(function (entity) {
+                                    if (entity.type == "number1") {
+                                        id = entity.entity;
+                                    }
+                                    if (entity.type == "newState") {
+                                        state = entity.entity;
+                                        state = state.charAt(0).toUpperCase() + state.substr(1).toLowerCase();
+                                    }
+                                    if(bestConfidence < intent.score && id && state) {
+                                        bestConfidence = intent.score;
+                                        console.log("indeosed");
+                                        bestIntent = intent.intent;
+                                        bestIntentState = state;
+                                        bestIntentId = id;
+
+                                    } 
+                                }, this);
+                            }
+                    });
+                }
+                asyncAjax[index].resolve({});
+            },
+                    timeout: 1000
+                });
+            }
+            });
+
+            $.when.apply($, asyncAjax).done(function() {
+                // console.log("All resolved");
+                                            console.log(bestIntentId + " : " + bestIntentState);
+
+                if (bestIntentId && bestIntentState) {
+                            console.log(bestIntentId + " : " + bestIntentState);
+                                    let vssUrl = "https://khokhi.visualstudio.com/defaultcollection/_apis/wit/workitems/" + bestIntentId + "?api-version=1.0";
+                                    $.ajax({
+                                        url: vssUrl,
+                                        data: JSON.stringify([{
+                                            "op": "add",
+                                            "path": "/fields/System.State",
+                                            "value": bestIntentState
+                                        }]),
+                                        type: 'PATCH',
+                                        contentType: 'application/json-patch+json',
+                                        headers: {
+                                            'Authorization': 'Basic ' + btoa("" + ":" + "gtzgiezcgl5ktal27jgndffndpbwlak4iznkztyb2xxvfak5g2xq")
+                                        },
+                                        xhr: function () {
+                                            return window.XMLHttpRequest == null || new window.XMLHttpRequest().addEventListener == null
+                                                ? new window.ActiveXObject("Microsoft.XMLHTTP")
+                                                : $.ajaxSettings.xhr();
+                                        }
+                                    }).done(function (results) {
+                                        console.log("done");
+                                    });
+                                }
+            });
+                        
+            }
+
         }
 
         function OnComplete() {
@@ -236,4 +297,6 @@
         }
     </script>
 </body>
+
 </html>
+
