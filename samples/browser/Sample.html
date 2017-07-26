@@ -1,302 +1,280 @@
-﻿<!DOCTYPE html>
-<html>
+﻿// Copyright (c) 2011 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
-<head>
-    <title>Speech Sample</title>
-    <meta charset="utf-8" />
-</head>
+navigator.getUserMedia({ audio: true, video: { width: 1280, height: 720 } },
+    function (stream) {
+        console.log("got the stream");
+    },
+    function (err) {
+        console.log("The following error occurred: " + err.name);
+    }
+);
 
-<body style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px;">
-    <table width="100%">
-        <tr>
-            <td></td>
-            <td>
-                <h1 style="font-weight:500;">Scrum master</h1>
-            </td>
-        </tr>
-        <tr>
-            <td></td>
-            <td>
-                <button id="startBtn" disabled="disabled">Start</button>
-                <button id="stopBtn" disabled="disabled">Stop</button>
-            </td>
-        </tr>
-        <tr>
-            <td></td>
-            <td>Status: <span id="statusDiv"></span></td>
-        </tr>
-    </table>
+require(["Speech.Browser.Sdk"], function (SDK) {
+    chrome.browserAction.setIcon({ path: "icon" + 1 + ".png" });
+    var min = 1;
+    var max = 2;
+    var recognizer;
+    var current = max;
+    Setup();
 
-    <!-- The SDK has a dependency on requirejs (http://requirejs.org/). -->
-    <script src="http://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.3/require.min.js"></script>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    function updateIcon() {
+        chrome.browserAction.setIcon({ path: "icon" + current + ".png" });
+        current++;
 
-    <!-- SDK REFERENCE -->
-    <script src="../../distrib\speech.browser.sdk-min.js"></script>
+        if (current > max) {
+            if (!recognizer) {
+                Setup();
+            }
+            RecognizerStart(SDK, recognizer);
+            current = min;
+        } else {
+            RecognizerStop(SDK, recognizer);
+        }
+    }
 
-    <!-- SDK USAGE -->
-    <script>
-        // On doument load resolve the SDK dependecy
-        function Initialize(onComplete) {
-            require(["Speech.Browser.Sdk"], function (SDK) {
-                onComplete(SDK);
+    chrome.browserAction.onClicked.addListener(updateIcon);
+
+    // Setup the recongizer
+    function RecognizerSetup(SDK, recognitionMode, language, format, subscriptionKey) {
+        var recognizerConfig = new SDK.RecognizerConfig(
+            new SDK.SpeechConfig(
+                new SDK.Context(
+                    new SDK.OS(navigator.userAgent, "Browser", null),
+                    new SDK.Device("SpeechSample", "SpeechSample", "1.0.00000"))),
+            recognitionMode, // SDK.RecognitionMode.Interactive  (Options - Interactive/Conversation/Dictation>)
+            language, // Supported laguages are specific to each recognition mode. Refer to docs.
+            format); // SDK.SpeechResultFormat.Simple (Options - Simple/Detailed)
+
+        // Alternatively use SDK.CognitiveTokenAuthentication(fetchCallback, fetchOnExpiryCallback) for token auth
+        var authentication = new SDK.CognitiveSubscriptionKeyAuthentication(subscriptionKey);
+
+        return SDK.CreateRecognizer(recognizerConfig, authentication);
+    }
+
+    // Start the recognition
+    function RecognizerStart(SDK, recognizer) {
+        recognizer.Recognize((event) => {
+            /*
+             Alternative syntax for typescript devs.
+             if (event instanceof SDK.RecognitionTriggeredEvent)
+            */
+            switch (event.Name) {
+                case "RecognitionTriggeredEvent":
+                    UpdateStatus("Initializing");
+                    break;
+                case "ListeningStartedEvent":
+                    UpdateStatus("Listening");
+                    break;
+                case "RecognitionStartedEvent":
+                    UpdateStatus("Listening_Recognizing");
+                    break;
+                case "SpeechStartDetectedEvent":
+                    UpdateStatus("Listening_DetectedSpeech_Recognizing");
+                    console.log(JSON.stringify(event.Result)); // check console for other information in result
+                    break;
+                case "SpeechHypothesisEvent":
+                    UpdateRecognizedHypothesis(event.Result.Text);
+                    console.log(JSON.stringify(event.Result)); // check console for other information in result
+                    break;
+                case "SpeechEndDetectedEvent":
+                    OnSpeechEndDetected();
+                    UpdateStatus("Processing_Adding_Final_Touches");
+                    console.log(JSON.stringify(event.Result)); // check console for other information in result
+                    break;
+                case "SpeechSimplePhraseEvent":
+                    UpdateRecognizedPhrase(JSON.stringify(event.Result, null, 3));
+                    break;
+                case "SpeechDetailedPhraseEvent":
+                    UpdateRecognizedPhrase(JSON.stringify(event.Result, null, 3));
+                    break;
+                case "RecognitionEndedEvent":
+                    OnComplete();
+                    UpdateStatus("Idle");
+                    console.log(JSON.stringify(event)); // Debug information
+                    break;
+            }
+        })
+            .On(() => {
+                // The request succeeded. Nothing to do here.
+            },
+            (error) => {
+                console.error(error);
             });
-        }
+    }
 
-        // Setup the recongizer
-        function RecognizerSetup(SDK, recognitionMode, language, format, subscriptionKey) {
-            var recognizerConfig = new SDK.RecognizerConfig(
-                new SDK.SpeechConfig(
-                    new SDK.Context(
-                        new SDK.OS(navigator.userAgent, "Browser", null),
-                        new SDK.Device("SpeechSample", "SpeechSample", "1.0.00000"))),
-                recognitionMode, // SDK.RecognitionMode.Interactive  (Options - Interactive/Conversation/Dictation>)
-                language, // Supported laguages are specific to each recognition mode. Refer to docs.
-                format); // SDK.SpeechResultFormat.Simple (Options - Simple/Detailed)
+    // Stop the Recognition.
+    function RecognizerStop(SDK, recognizer) {
+        // recognizer.AudioSource.Detach(audioNodeId) can be also used here. (audioNodeId is part of ListeningStartedEvent)
+        recognizer.AudioSource.TurnOff();
+    }
 
-            // Alternatively use SDK.CognitiveTokenAuthentication(fetchCallback, fetchOnExpiryCallback) for token auth
-            var authentication = new SDK.CognitiveSubscriptionKeyAuthentication(subscriptionKey);
+    function Setup() {
+        recognizer = RecognizerSetup(SDK, SDK.RecognitionMode.Conversation,
+            "en-US", SDK.SpeechResultFormat["Detailed"], "b25c9c5d48994c88a344bb45eaff8f47");
+    }
 
-            return SDK.CreateRecognizer(recognizerConfig, authentication);
-        }
+    function UpdateStatus(status) {
+    }
 
-        // Start the recognition
-        function RecognizerStart(SDK, recognizer) {
-            recognizer.Recognize((event) => {
-                /*
-                 Alternative syntax for typescript devs.
-                 if (event instanceof SDK.RecognitionTriggeredEvent)
-                */
-                switch (event.Name) {
-                    case "RecognitionTriggeredEvent":
-                        UpdateStatus("Initializing");
-                        break;
-                    case "ListeningStartedEvent":
-                        UpdateStatus("Listening");
-                        break;
-                    case "RecognitionStartedEvent":
-                        UpdateStatus("Listening_Recognizing");
-                        break;
-                    case "SpeechStartDetectedEvent":
-                        UpdateStatus("Listening_DetectedSpeech_Recognizing");
-                        console.log(JSON.stringify(event.Result)); // check console for other information in result
-                        break;
-                    case "SpeechHypothesisEvent":
-                        UpdateRecognizedHypothesis(event.Result.Text);
-                        console.log(JSON.stringify(event.Result)); // check console for other information in result
-                        break;
-                    case "SpeechEndDetectedEvent":
-                        OnSpeechEndDetected();
-                        UpdateStatus("Processing_Adding_Final_Touches");
-                        console.log(JSON.stringify(event.Result)); // check console for other information in result
-                        break;
-                    case "SpeechSimplePhraseEvent":
-                        UpdateRecognizedPhrase(JSON.stringify(event.Result, null, 3));
-                        break;
-                    case "SpeechDetailedPhraseEvent":
-                        UpdateRecognizedPhrase(JSON.stringify(event.Result, null, 3));
-                        break;
-                    case "RecognitionEndedEvent":
-                        OnComplete();
-                        UpdateStatus("Idle");
-                        console.log(JSON.stringify(event)); // Debug information
-                        break;
-                }
-            })
-                .On(() => {
-                    // The request succeeded. Nothing to do here.
-                },
-                (error) => {
-                    console.error(error);
-                });
-        }
+    function UpdateRecognizedHypothesis(text) {
+    }
 
-        // Stop the Recognition.
-        function RecognizerStop(SDK, recognizer) {
-            // recognizer.AudioSource.Detach(audioNodeId) can be also used here. (audioNodeId is part of ListeningStartedEvent)
-            recognizer.AudioSource.TurnOff();
-        }
-    </script>
+    function OnSpeechEndDetected() {
+    }
 
-    <!-- Browser Hooks -->
-    <script>
-        var startBtn, stopBtn;
-        var SDK;
-        var recognizer;
-        var previousSubscriptionKey;
-
-        document.addEventListener("DOMContentLoaded", function () {
-            createBtn = document.getElementById("createBtn");
-            startBtn = document.getElementById("startBtn");
-            stopBtn = document.getElementById("stopBtn");
-            statusDiv = document.getElementById("statusDiv");
-
-            startBtn.addEventListener("click", function () {
-                if (!recognizer) {
-                    previousSubscriptionKey = "b25c9c5d48994c88a344bb45eaff8f47";
-                    Setup();
-                }
-
-                RecognizerStart(SDK, recognizer);
-                startBtn.disabled = true;
-                stopBtn.disabled = false;
-            });
-
-            stopBtn.addEventListener("click", function () {
-                RecognizerStop(SDK);
-                startBtn.disabled = false;
-                stopBtn.disabled = true;
-            });
-
-            Initialize(function (speechSdk) {
-                SDK = speechSdk;
-                startBtn.disabled = false;
-            });
-        });
-
-        function Setup() {
-            recognizer = RecognizerSetup(SDK, SDK.RecognitionMode.Dictation,
-                "en-IN", SDK.SpeechResultFormat["Detailed"], "b25c9c5d48994c88a344bb45eaff8f47");
-        }
-
-        function UpdateStatus(status) {
-            statusDiv.innerHTML = status;
-        }
-
-        function UpdateRecognizedHypothesis(text) {
-        }
-
-        function OnSpeechEndDetected() {
-            stopBtn.disabled = true;
-        }
-
-        function UpdateRecognizedPhrase(json) {
-            //console.log(json);
-
-            // Code for detailed view for speech to text starts
-
-            // Detect recognition status
-            var text = JSON.parse(json);
-            var bestIntentId, bestIntentState, bestIntent;
-            var bestConfidence = 0.0;
-            var asyncAjax = [];
-            //console.log(json);
-            // Only case use this
-
-            if(text.RecognitionStatus == "Success") {
-
+    function UpdateRecognizedPhrase(json) {
+        var text = JSON.parse(json);
+        var bestIntentId, bestIntentState, bestIntent;
+        var bestConfidence = 0.0;
+        var asyncAjax = [];
+        if (text.RecognitionStatus == "Success") {
+        
             var recognisedData = text.NBest;
 
             //console.log("total: " + recognisedData.length);
 
             recognisedData.forEach(function (speechEstimate, index) {
-                console.log(speechEstimate);
-                if(speechEstimate && speechEstimate.Confidence > 0.65) {
-            var def = $.Deferred();
-            asyncAjax.push(def);
-            text = speechEstimate.ITN;
-            //console.log(text);
+                //console.log(speechEstimate);
+                if (speechEstimate && speechEstimate.Confidence > 0.60) {
+                    var def = $.Deferred();
+                    asyncAjax.push(def);
+                    text = speechEstimate.ITN;
+                    console.log(text);
+                    var url = "https://southeastasia.api.cognitive.microsoft.com" +
+                        "/luis/v2.0/apps/338a50e6-a759-4418-a8b3-9f09ec0b540b" +
+                        "?subscription-key=73ed210703444c72a812f052b06da41d&verbose=true" +
+                        "&timezoneOffset=0&spellCheck=true&q=" +
+                        encodeURI(text);
 
-
-            // Code for detailed view for speech to text ends
-
-
-
-
-
-
-
-                var url = "https://southeastasia.api.cognitive.microsoft.com" +
-                    "/luis/v2.0/apps/338a50e6-a759-4418-a8b3-9f09ec0b540b" +
-                    "?subscription-key=73ed210703444c72a812f052b06da41d&verbose=true" +
-                    "&timezoneOffset=0&spellCheck=true&q=" +
-                    encodeURI(text);
-
-                var ajax1 = $.ajax({
-                    url: url,
-                    dataType: 'json',
-                    error: function(a, b) {
-                        console.log("error" + index);
-                        asyncAjax[index].resolve({});
-                    },
-                    success: function(results) {
-                        console.log("success" + index);
-                        if (results) {
-                        // console.log(text);
-                        // console.log(results);
-                        (results.intents).forEach(function (intent) {
-                            // console.log(intent);
-                            if (intent.intent == "Update" && intent.score > 0.8) {
-                                // console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                    var ajax1 = $.ajax({
+                        url: url,
+                        dataType: 'json',
+                        error: function (a, b) {
+                            console.log("error" + index);
+                            asyncAjax[index].resolve({});
+                        },
+                        success: function (results) {
+                            console.log("success" + index);
+                            if (results) {
+                                // console.log(text);
                                 // console.log(results);
-                                var id, state;
-                                (results.entities).forEach(function (entity) {
-                                    if (entity.type == "number1") {
-                                        id = entity.entity;
-                                    }
-                                    if (entity.type == "newState") {
-                                        state = entity.entity;
-                                        state = state.charAt(0).toUpperCase() + state.substr(1).toLowerCase();
-                                    }
-                                    if(bestConfidence < intent.score && id && state) {
-                                        bestConfidence = intent.score;
-                                        console.log("indeosed");
-                                        bestIntent = intent.intent;
-                                        bestIntentState = state;
-                                        bestIntentId = id;
+                                (results.intents).forEach(function (intent) {
+                                    // console.log(intent);
+                                    if (intent.intent == "Update" && intent.score > 0.8) {
+                                        // console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                                        // console.log(results);
+                                        var id, state;
+                                        (results.entities).forEach(function (entity) {
+                                            if (entity.type == "number1") {
+                                                id = entity.entity;
+                                            }
+                                            if (entity.type == "newState") {
+                                                state = entity.entity;
+                                                state = state.charAt(0).toUpperCase() + state.substr(1).toLowerCase();
+                                            }
+                                            if (bestConfidence < intent.score && id && state) {
+                                                bestConfidence = intent.score;
+                                                console.log("indeosed");
+                                                bestIntent = intent.intent;
+                                                bestIntentState = state;
+                                                bestIntentId = id;
 
-                                    } 
-                                }, this);
+                                            }
+                                        }, this);
+                                    }
+                                });
                             }
+                            asyncAjax[index].resolve({});
+                        },
+                        timeout: 1000
                     });
                 }
-                asyncAjax[index].resolve({});
-            },
-                    timeout: 1000
-                });
-            }
             });
 
-            $.when.apply($, asyncAjax).done(function() {
+            $.when.apply($, asyncAjax).done(function () {
                 // console.log("All resolved");
-                                            console.log(bestIntentId + " : " + bestIntentState);
+                console.log(bestIntentId + " : " + bestIntentState);
+                if (bestIntentId && bestIntentState && bestIntentState != "Delete") {
+                    var validState;
+                    switch (bestIntentState) {
+                        case "Active":
+                            validState = "Active";
+                            break;
+                        case "Resolved":
+                            validState = "Resolved";
+                            break;
+                        case "Closed":
+                            validState = "Closed";
+                            break;
+                        case "New":
+                            validState = "New";
+                            break;
+                        case "Removed":
+                            validState = "Removed";
+                            break;
+                        default:
+                            speakResult(bestIntentState + " is an invalid state");
+                            break;
+                    }
+                    if (validState) {
+                        let vssUrl = "https://khokhi.visualstudio.com/defaultcollection/_apis/wit/workitems/" + bestIntentId + "?api-version=1.0";
+                        $.ajax({
+                            url: vssUrl,
+                            data: JSON.stringify([{
+                                "op": "add",
+                                "path": "/fields/System.State",
+                                "value": validState
+                            }]),
+                            type: 'PATCH',
+                            contentType: 'application/json-patch+json',
+                            headers: {
+                                'Authorization': 'Basic ' + btoa("" + ":" + "gtzgiezcgl5ktal27jgndffndpbwlak4iznkztyb2xxvfak5g2xq")
+                            },
+                            xhr: function () {
+                                return window.XMLHttpRequest == null || new window.XMLHttpRequest().addEventListener == null
+                                    ? new window.ActiveXObject("Microsoft.XMLHTTP")
+                                    : $.ajaxSettings.xhr();
+                            }
+                        }).done(function (results) {
+                            console.log("done");
+                        });
+                    }
+                }
+                else if (bestIntentId && bestIntentState && bestIntentState == "Delete") {
+                    let vssUrl = "https://khokhi.visualstudio.com/defaultcollection/_apis/wit/workitems/" + bestIntentId + "?api-version=1.0";
+                    $.ajax({
+                        url: vssUrl,
 
-                if (bestIntentId && bestIntentState) {
-                            console.log(bestIntentId + " : " + bestIntentState);
-                                    let vssUrl = "https://khokhi.visualstudio.com/defaultcollection/_apis/wit/workitems/" + bestIntentId + "?api-version=1.0";
-                                    $.ajax({
-                                        url: vssUrl,
-                                        data: JSON.stringify([{
-                                            "op": "add",
-                                            "path": "/fields/System.State",
-                                            "value": bestIntentState
-                                        }]),
-                                        type: 'PATCH',
-                                        contentType: 'application/json-patch+json',
-                                        headers: {
-                                            'Authorization': 'Basic ' + btoa("" + ":" + "gtzgiezcgl5ktal27jgndffndpbwlak4iznkztyb2xxvfak5g2xq")
-                                        },
-                                        xhr: function () {
-                                            return window.XMLHttpRequest == null || new window.XMLHttpRequest().addEventListener == null
-                                                ? new window.ActiveXObject("Microsoft.XMLHTTP")
-                                                : $.ajaxSettings.xhr();
-                                        }
-                                    }).done(function (results) {
-                                        console.log("done");
-                                    });
-                                }
+                        type: 'DELETE',
+
+                        headers: {
+                            'Authorization': 'Basic ' + btoa("" + ":" + "gtzgiezcgl5ktal27jgndffndpbwlak4iznkztyb2xxvfak5g2xq")
+                        },
+                        xhr: function () {
+                            return window.XMLHttpRequest == null || new window.XMLHttpRequest().addEventListener == null
+                                ? new window.ActiveXObject("Microsoft.XMLHTTP")
+                                : $.ajaxSettings.xhr();
+                        }
+                    }).done(function (results) {
+                        console.log("deleted");
+                    });
+                }
             });
-                        
-            }
-
         }
+    }
 
-        function OnComplete() {
-            startBtn.disabled = false;
-            stopBtn.disabled = true;
+    function OnComplete() {
+    }
+
+    function speakResult(text) {
+        if ('speechSynthesis' in window) {
+            var msg = new SpeechSynthesisUtterance(text);
+            msg.lang = "en-US";
+            speechSynthesis.speak(msg);
         }
-    </script>
-</body>
+    }
+});
 
-</html>
 
